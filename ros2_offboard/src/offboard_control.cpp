@@ -18,12 +18,18 @@ public:
     target_.position = {0.0, 0.0, -5.0};
     target_.yaw = -3.14;
     heartbeat_pub_ = this->create_publisher<OffboardControlMode>("/fmu/in/offboard_control_mode", 10);
-    //traj_setpoint_pub = this->create_publisher<TrajectorySetpoint>("/fmu/in/trajectory_setpoint", 10);
+    traj_setpoint_pub_ = this->create_publisher<TrajectorySetpoint>("/fmu/in/trajectory_setpoint", 10);
     veh_cmd_pub_ = this->create_publisher<VehicleCommand>("/fmu/in/vehicle_command", 10);
+
+    // The original code for offboard control runs this at least 10 times before arming, this however seems to work? might need to change for the real thing
+    pub_heartbeat();
+
+    this->arm();
+    this->pub_vehcom(VehicleCommand::VEHICLE_CMD_DO_SET_MODE, 1, 6); // Set to Offboard Mode
     
     auto timer_callback = [this]() -> void {
-      this->arm();
       pub_heartbeat();
+      pub_target();
     };
     timer_ = this->create_wall_timer(100ms, timer_callback);
   }
@@ -38,7 +44,7 @@ private:
   TrajectorySetpoint target_;
   
   void pub_heartbeat();
-  //void pub_target();
+  void pub_target();
   void pub_vehcom(uint16_t command, float param1 = 0.0, float param2 = 0.0);
 };
 
@@ -79,6 +85,12 @@ void OffboardControl::pub_vehcom(uint16_t command, float param1, float param2)
   msg.from_external = true;
   msg.timestamp = this->get_clock()->now().nanoseconds() / 1000;
   veh_cmd_pub_->publish(msg);
+}
+
+void OffboardControl::pub_target()
+{
+  target_.timestamp = this->get_clock()->now().nanoseconds() / 1000;
+  traj_setpoint_pub_->publish(target_);
 }
 
 int main(int argc, char ** argv)
