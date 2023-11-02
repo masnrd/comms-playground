@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(ros2_offboard)
+project(central_interface)
 
 # Default to C++14
 if(NOT CMAKE_CXX_STANDARD)
@@ -15,13 +15,9 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(px4_msgs REQUIRED)
 
-add_executable(offboard_control src/offboard_control.cpp)
-ament_target_dependencies(offboard_control rclcpp px4_msgs)
-install(TARGETS offboard_control DESTINATION lib/${PROJECT_NAME}) # Install section so ros2 run can find
-# target_include_directories(offboard_control PUBLIC
-#   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-#   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
-# target_compile_features(offboard_control PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+add_executable(central_interface src/central_interface.cpp)
+ament_target_dependencies(central_interface rclcpp px4_msgs)
+install(TARGETS central_interface DESTINATION lib/${PROJECT_NAME}) # Install section so ros2 run can find
 
 
 if(BUILD_TESTING)

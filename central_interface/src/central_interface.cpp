@@ -27,7 +27,7 @@ class Point
 };
 
 
-class OBCNode : public rclcpp::Node 
+class CentralNode : public rclcpp::Node 
 {
     private:
     uint64_t counter_; // current cycle
@@ -66,13 +66,13 @@ class OBCNode : public rclcpp::Node
     void pub_vehcom(uint16_t cmd, float p1 = 0.0, float p2 = 0.0);
 
     public:
-    OBCNode();
+    CentralNode();
     void arm();
     void disarm();
     void log(const char* msg);
 };
 
-OBCNode::OBCNode() : Node("ros2_offboard")
+CentralNode::CentralNode() : Node("central_node")
 {
     // Initial Setup
     counter_ = 0;
@@ -129,7 +129,7 @@ OBCNode::OBCNode() : Node("ros2_offboard")
     set_target(Point(10.0, 10.0)); log("Going to (10.0, 10.0).");
 }
 
-void OBCNode::process_pos() {
+void CentralNode::process_pos() {
     if (abs(pos.x - tgt.position[0]) > tolerance)
         return;
     if (abs(pos.y - tgt.position[1]) > tolerance)
@@ -142,27 +142,27 @@ void OBCNode::process_pos() {
     set_target(Point(-10.0, -10.0)); log("Going to (-10.0, -10.0).");
 }
 
-void OBCNode::set_target(const Point pt) {
+void CentralNode::set_target(const Point pt) {
     operating = false;
     tgt.position = {pt.x, pt.y, -targetAlt};
     operating = true;
 }
 
-void OBCNode::log(const char* msg) {
+void CentralNode::log(const char* msg) {
     RCLCPP_INFO(this->get_logger(), msg);
 }
 
-void OBCNode::arm() {
+void CentralNode::arm() {
     pub_vehcom(VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0);
     log("Arm command sent.");
 }
 
-void OBCNode::disarm() {
+void CentralNode::disarm() {
     pub_vehcom(VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM, 0.0);
     log("Disarm command sent.");
 }
 
-void OBCNode::pub_heartbeat() {
+void CentralNode::pub_heartbeat() {
     OffboardControlMode hb{};
     hb.position = true;
     hb.velocity = false; hb.acceleration = false; hb.attitude = false; hb.body_rate = false;
@@ -170,7 +170,7 @@ void OBCNode::pub_heartbeat() {
     ocm_pub->publish(hb);
 }
 
-void OBCNode::pub_vehcom(uint16_t cmd, float p1, float p2) {
+void CentralNode::pub_vehcom(uint16_t cmd, float p1, float p2) {
     VehicleCommand msg{};
     msg.param1 = p1; msg.param2 = p2;
     msg.command = cmd;
@@ -183,7 +183,7 @@ void OBCNode::pub_vehcom(uint16_t cmd, float p1, float p2) {
     vehcom_pub->publish(msg);
 }
 
-void OBCNode::pub_target() {
+void CentralNode::pub_target() {
     // Continuously publish to this to ensure drone knows where to go
     tgt.timestamp = this->get_clock()->now().nanoseconds() / 1000;
     tsp_pub->publish(tgt);
@@ -191,10 +191,10 @@ void OBCNode::pub_target() {
 
 int main(int argc, char** argv)
 {
-    std::cout << "Starting OBCNode." << std::endl;
+    std::cout << "Starting CentralNode." << std::endl;
     setvbuf(stdout, NULL, _IONBF, BUFSIZ);
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<OBCNode>());
+    rclcpp::spin(std::make_shared<CentralNode>());
     rclcpp::shutdown();
     return 0;
 }
