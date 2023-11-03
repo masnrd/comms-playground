@@ -6,6 +6,9 @@
 #include <px4_msgs/msg/offboard_control_mode.hpp>
 #include <px4_msgs/msg/vehicle_local_position.hpp>
 #include <px4_msgs/msg/trajectory_setpoint.hpp>
+#include <masnrd_msgs/msg/reached_waypoint.hpp>
+#include <masnrd_msgs/msg/goto_waypoint.hpp>
+#include <masnrd_msgs/msg/detected.hpp>
 
 using namespace std::chrono_literals;
 
@@ -14,6 +17,10 @@ using px4_msgs::msg::OffboardControlMode; // Heartbeat
 
 using px4_msgs::msg::VehicleLocalPosition;
 using px4_msgs::msg::TrajectorySetpoint;
+
+using masnrd_msgs::msg::ReachedWaypoint;
+using masnrd_msgs::msg::GotoWaypoint;
+using masnrd_msgs::msg::Detected;
 
 class Point
 {
@@ -53,10 +60,17 @@ class CentralNode : public rclcpp::Node
     const std::chrono::milliseconds pubIntv = 100ms;
 
     rclcpp::TimerBase::SharedPtr timer_;
+
+    // Communication with PX4
     rclcpp::Publisher<VehicleCommand>::SharedPtr vehcom_pub;
     rclcpp::Publisher<OffboardControlMode>::SharedPtr ocm_pub;
     rclcpp::Subscription<VehicleLocalPosition>::SharedPtr localpos_sub;
     rclcpp::Publisher<TrajectorySetpoint>::SharedPtr tsp_pub;
+
+    // Communication with Pathfinder
+    rclcpp::Publisher<ReachedWaypoint>::SharedPtr reachedwp_pub;
+    rclcpp::Publisher<Detected>::SharedPtr detected_pub;
+    rclcpp::Subscription<GotoWaypoint>::SharedPtr gotowp_sub;
 
     void set_target(const Point pt);
     void process_pos();
@@ -87,24 +101,35 @@ CentralNode::CentralNode() : Node("central_node")
     rmw_qos_profile_t qos_sub_prof = rmw_qos_profile_sensor_data;
     auto qos_sub = rclcpp::QoS(rclcpp::QoSInitialization(qos_sub_prof.history, 5), qos_sub_prof);
 
-    // 2. Create subscription
+    // 2. Create subscriptions
+    // 2.1. Subscriber to GPS Updates
     localpos_sub = this->create_subscription<VehicleLocalPosition>("/fmu/out/vehicle_local_position", qos_sub, [this](const VehicleLocalPosition::UniquePtr msg) {
         // Update local position every time PX4 publishes to this
         pos.x = msg->x;
         pos.y = msg->y;
         alt = -msg->z;
 
-        std::cout << "Position: " << pos.x << "," << pos.y << std::endl;
+        // std::cout << "Position: " << pos.x << "," << pos.y << std::endl;
 
         // If we've reached the tgt, then we can report.
         if (operating)
             process_pos();
+    });
+    // 2.2. Subscriber to GOTO position updates from pathfinder
+    gotowp_sub = this->create_subscription<GotoWaypoint>("/pathfinder/out/goto_waypoint", 10, [this](const GotoWaypoint::UniquePtr msg) {
+        // Update target
+        //TODO: take timestamp into account?
+        log("Received instruction");
+        set_target(Point(msg->x, msg->y));
     });
 
     // Setup Publishers
     ocm_pub = this->create_publisher<OffboardControlMode>("/fmu/in/offboard_control_mode", 10);
     tsp_pub = this->create_publisher<TrajectorySetpoint>("/fmu/in/trajectory_setpoint", 10);
     vehcom_pub = this->create_publisher<VehicleCommand>("/fmu/in/vehicle_command", 10);
+
+    reachedwp_pub = this->create_publisher<ReachedWaypoint>("/pathfinder/in/reached_waypoint", 10);
+    detected_pub = this->create_publisher<Detected>("/pathfinder/in/detected", 10);
 
     // Setup timed publishing
     auto timer_callback = [this]() -> void {
@@ -123,10 +148,6 @@ CentralNode::CentralNode() : Node("central_node")
             pub_target();
     };
     timer_ = this->create_wall_timer(pubIntv, timer_callback);
-
-
-    // TESTER CODE
-    set_target(Point(10.0, 10.0)); log("Going to (10.0, 10.0).");
 }
 
 void CentralNode::process_pos() {
@@ -137,9 +158,7 @@ void CentralNode::process_pos() {
     
     // If we've reached the target, report in.
     log("Reached target.");
-
-    // TESTER CODE
-    set_target(Point(-10.0, -10.0)); log("Going to (-10.0, -10.0).");
+    operating = false;
 }
 
 void CentralNode::set_target(const Point pt) {

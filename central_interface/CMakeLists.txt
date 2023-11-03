@@ -13,10 +13,11 @@ endif()
 # Dependencies
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
-find_package(px4_msgs REQUIRED)
+find_package(px4_msgs REQUIRED)    # for PX4 interfacing
+find_package(masnrd_msgs REQUIRED) # for pathfinder_node interfacing
 
 add_executable(central_interface src/central_interface.cpp)
-ament_target_dependencies(central_interface rclcpp px4_msgs)
+ament_target_dependencies(central_interface rclcpp px4_msgs masnrd_msgs)
 install(TARGETS central_interface DESTINATION lib/${PROJECT_NAME}) # Install section so ros2 run can find
 
 
