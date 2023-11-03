@@ -54,7 +54,7 @@ class CentralNode : public rclcpp::Node
 
     // Velocity Targets (m/s)
     const float fullSpeed = 5.0;
-    const float scanSpeed = 2.0;
+    const float scanSpeed = 2.8;
 
     // Publisher Interval
     const std::chrono::milliseconds pubIntv = 100ms;
@@ -74,10 +74,11 @@ class CentralNode : public rclcpp::Node
 
     void set_target(const Point pt);
     void process_pos();
+    void pub_reached();
 
     void pub_heartbeat();
     void pub_target();
-    void pub_vehcom(uint16_t cmd, float p1 = 0.0, float p2 = 0.0);
+    void pub_vehcom(uint16_t cmd, float p1 = 0.0, float p2 = 0.0, float p3 = 0.0);
 
     public:
     CentralNode();
@@ -141,6 +142,12 @@ CentralNode::CentralNode() : Node("central_node")
                 VehicleCommand::VEHICLE_CMD_DO_SET_MODE,
                 1, 6 // Set to OFFBOARD mode
             );
+
+            // TODO: change to only change speed to scanSpeed when actually initiating scan
+            this->pub_vehcom(
+                VehicleCommand::VEHICLE_CMD_DO_CHANGE_SPEED,
+                scanSpeed, -1
+            );
         }
         pub_heartbeat();
 
@@ -158,6 +165,7 @@ void CentralNode::process_pos() {
     
     // If we've reached the target, report in.
     log("Reached target.");
+    pub_reached();
     operating = false;
 }
 
@@ -181,6 +189,13 @@ void CentralNode::disarm() {
     log("Disarm command sent.");
 }
 
+void CentralNode::pub_reached() {
+    ReachedWaypoint rwp{};
+    rwp.x = tgt.position.x; rwp.y = tgt.position.y;
+    rwp.timestamp = this->get_clock()->now().nanoseconds() / 1000;
+    reachedwp_pub->publish(rwp);
+}
+
 void CentralNode::pub_heartbeat() {
     OffboardControlMode hb{};
     hb.position = true;
@@ -189,9 +204,9 @@ void CentralNode::pub_heartbeat() {
     ocm_pub->publish(hb);
 }
 
-void CentralNode::pub_vehcom(uint16_t cmd, float p1, float p2) {
+void CentralNode::pub_vehcom(uint16_t cmd, float p1, float p2, float p3) {
     VehicleCommand msg{};
-    msg.param1 = p1; msg.param2 = p2;
+    msg.param1 = p1; msg.param2 = p2; msg.param3 = p3;
     msg.command = cmd;
     msg.target_system = 1;
     msg.target_component = 1;
